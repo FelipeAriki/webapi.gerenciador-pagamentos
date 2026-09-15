@@ -1,0 +1,12 @@
+## Build
+[Bb]in/
+[Oo]bj/
+
+## Visual Studio
+.vs/
+*.user
+*.suo
+
+## Segredos: este arquivo contem a senha do banco
+appsettings.Development.json
+appsettings.*.Local.json

@@ -1,0 +1,13 @@
+@HostAddress = http://localhost:5277
+
+### Listar todos os jogadores
+GET {{HostAddress}}/api/Jogador
+Accept: application/json
+
+### Obter um jogador por id (200 quando existe)
+GET {{HostAddress}}/api/Jogador/1
+Accept: application/json
+
+### Id inexistente (deve devolver 404)
+GET {{HostAddress}}/api/Jogador/9999
+Accept: application/json
