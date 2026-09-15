@@ -2,4 +2,5 @@
 
 public interface IJogadorCommandRepository
 {
+    Task<bool> ExcluirJogador(int id);
 }

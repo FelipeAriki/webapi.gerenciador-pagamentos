@@ -7,6 +7,19 @@
 *.user
 *.suo
 
-## Segredos: este arquivo contem a senha do banco
-appsettings.Development.json
-appsettings.*.Local.json
+## Segredos e configuração local
+appsettings.*.json
+!appsettings.json
+**/secrets.json
+.env
+.env.*
+!.env.example
+
+## Certificados e chaves
+*.pfx
+*.p12
+*.pem
+*.key
+
+## Publish profiles (podem conter credenciais de deploy)
+Properties/PublishProfiles/*.pubxml.user
