@@ -1,7 +1,7 @@
 @HostAddress = http://localhost:5277
 
-### Listar todos os jogadores
-GET {{HostAddress}}/api/Jogador
+### Listar jogadores (paginado)
+GET {{HostAddress}}/api/Jogador?pagina=1&tamanhoPagina=10&situacao=todos
 Accept: application/json
 
 ### Obter um jogador por id (200 quando existe)
@@ -11,3 +11,35 @@ Accept: application/json
 ### Id inexistente (deve devolver 404)
 GET {{HostAddress}}/api/Jogador/9999
 Accept: application/json
+
+### Cadastrar jogador (201 e Location)
+POST {{HostAddress}}/api/Jogador
+Content-Type: application/json
+
+{
+  "nome": "Jogador",
+  "sobrenome": "Exemplo",
+  "totalPago": 6.00,
+  "totalPagar": 7.00,
+  "urlImagem": null,
+  "urlImagemComprovante": null
+}
+
+### Editar — substitua o ID pelo registro que você criou
+PUT {{HostAddress}}/api/Jogador/9999
+Content-Type: application/json
+
+{
+  "nome": "Jogador",
+  "sobrenome": "Exemplo",
+  "totalPago": 7.00,
+  "totalPagar": 7.00,
+  "urlImagem": null,
+  "urlImagemComprovante": "https://example.com/comprovante.png"
+}
+
+### Excluir — substitua o ID por um registro de teste descartável
+DELETE {{HostAddress}}/api/Jogador/9999
+
+### Prontidão do banco
+GET {{HostAddress}}/health/ready

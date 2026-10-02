@@ -1,50 +1,56 @@
-﻿using Dapper;
+using System.Data;
+using Dapper;
 using gerenciador_pagamentos.webapi.Interface;
 using gerenciador_pagamentos.webapi.Model;
+using gerenciador_pagamentos.webapi.ViewModel;
 using Npgsql;
-using System.Data;
 
 namespace gerenciador_pagamentos.webapi.Repository;
 
-public class JogadorQueryRepository : IJogadorQueryRepository
+public class JogadorQueryRepository(NpgsqlDataSource dataSource) : IJogadorQueryRepository
 {
-    private readonly string _connectionString;
+    private const string Filtro = """
+        WHERE (@Busca IS NULL OR nome || ' ' || sobrenome ILIKE @Busca ESCAPE '\')
+          AND (@Situacao = 'todos'
+            OR (@Situacao = 'quitado' AND total_pago >= total_pagar)
+            OR (@Situacao = 'pendente' AND total_pago < total_pagar))
+        """;
 
-    public JogadorQueryRepository(string connectionString)
+    public async Task<(IReadOnlyList<Jogador> Itens, ResumoPagamentosViewModel Resumo)> ObterDadosJogadores(
+        ConsultaJogadoresViewModel consulta, CancellationToken cancellationToken = default)
     {
-        _connectionString = connectionString;
+        const string sql = "SELECT " + JogadorSql.Colunas + " FROM jogador " + Filtro + "\n" + """
+            ORDER BY nome, sobrenome, id LIMIT @Limite OFFSET @Offset;
+            SELECT COUNT(*) AS TotalJogadores,
+                COUNT(*) FILTER (WHERE total_pago >= total_pagar) AS Quitados,
+                COUNT(*) FILTER (WHERE total_pago < total_pagar) AS Pendentes,
+                COALESCE(SUM(total_pago), 0) AS TotalPago,
+                COALESCE(SUM(total_pagar), 0) AS TotalPagar,
+                COALESCE(SUM(GREATEST(total_pagar - total_pago, 0)), 0) AS ValorRestante
+            FROM jogador
+            """ + "\n" + Filtro + ";";
+        var busca = consulta.Busca?.Trim();
+        var parametros = new
+        {
+            Busca = string.IsNullOrEmpty(busca) ? null : "%" + busca.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%",
+            consulta.Situacao,
+            Limite = consulta.TamanhoPagina,
+            Offset = (consulta.Pagina - 1) * consulta.TamanhoPagina
+        };
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        // Itens e resumo representam a mesma fotografia, mesmo durante outros cadastros.
+        await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
+        using var resultados = await connection.QueryMultipleAsync(new CommandDefinition(sql, parametros, transaction, cancellationToken: cancellationToken));
+        var itens = (await resultados.ReadAsync<Jogador>()).ToList();
+        var resumo = await resultados.ReadSingleAsync<ResumoPagamentosViewModel>();
+        await transaction.CommitAsync(cancellationToken);
+        return (itens, resumo);
     }
 
-    private IDbConnection CreateConnection() => new NpgsqlConnection(_connectionString);
-
-    private const string Colunas = @"
-                id                     AS Id,
-                url_imagem             AS UrlImagem,
-                nome                   AS Nome,
-                sobrenome              AS Sobrenome,
-                total_pago             AS TotalPago,
-                total_pagar            AS TotalPagar,
-                url_imagem_comprovante AS UrlImagemComprovante";
-
-    private const string SqlListarTodos =
-        "SELECT " + Colunas + @"
-            FROM jogador
-            ORDER BY nome, sobrenome;";
-
-    private const string SqlObterPorId =
-        "SELECT " + Colunas + @"
-            FROM jogador
-            WHERE id = @Id;";
-
-    public async Task<IEnumerable<Jogador>> ObterDadosJogadores()
+    public async Task<Jogador?> ObterDadosJogador(int id, CancellationToken cancellationToken = default)
     {
-        using var connection = CreateConnection();
-        return await connection.QueryAsync<Jogador>(SqlListarTodos);
-    }
-
-    public async Task<Jogador?> ObterDadosJogador(int id)
-    {
-        using var connection = CreateConnection();
-        return await connection.QuerySingleOrDefaultAsync<Jogador>(SqlObterPorId, new { Id = id });
+        const string sql = "SELECT " + JogadorSql.Colunas + " FROM jogador WHERE id = @Id;";
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        return await connection.QuerySingleOrDefaultAsync<Jogador>(new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken));
     }
 }
